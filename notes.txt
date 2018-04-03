@@ -1,0 +1,29 @@
+pid = fork()
+if (pid == 0) {
+  child
+} else {
+  if (waitflag == 1) {
+    do {
+      rv = wait(&dummy)
+    } while (rv != pid)
+  }
+}
+
+using fields
+part 1
+  implement single command the only special thing is the & at the end
+  take command and pass to execvp
+  while (get_line(is) > -1) {
+    if (is->fields[end] == "&") {
+      if (!fork())
+        exec(is->fields[0], newargv)
+    } else {
+      if (!(pid == fork())) {
+        execvp(is->fields[0], newargv)
+        } else {
+          while (wait(&dummy) != pid) {
+          }
+        }
+    }
+  }
+        
