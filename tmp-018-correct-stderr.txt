@@ -1,2 +1,0 @@
-thisprogramdoesnotexist: Permission denied
-thisprogramdoesnotexist: Permission denied
