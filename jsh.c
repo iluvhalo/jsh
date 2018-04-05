@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <jval.h>
+#include <jrb.h>
 #include <fields.h>
 #include <sys/wait.h>
 
@@ -8,9 +10,11 @@ int main (int argc, char **argv) {
   int i, j;
   int status;
   int amp;
+  int pid;
   char *prompt;
   char **newarg;
   IS is;
+  JRB cList;
 
   // checks for correct usage
   if (argc > 2) {
@@ -39,6 +43,7 @@ int main (int argc, char **argv) {
 
   // this is the main loop of the shell
   is = new_inputstruct(NULL);
+  cList = make_jrb();
   here:
   printf("%s", prompt);
   while (get_line(is) != -1) {
@@ -82,14 +87,18 @@ int main (int argc, char **argv) {
 //      printf("newarg[%d]: %s\n", i, newarg[i]);
     }
 
-    if(fork() == 0) {
+    pid = fork();
+    if(pid == 0) {
+      jrb_insert_int(cList, pid, new_jval_i(pid));
       i = execvp(newarg[0], newarg);
 //      printf("exec failed\n");
       perror(newarg[0]);
       exit(1);
     } else {
       if (!amp) {
-        wait(&status);
+        do {
+          i = wait(&status);
+        } while (i != pid);
       }
     }
 
