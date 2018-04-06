@@ -5,12 +5,19 @@
 #include <jrb.h>
 #include <fields.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 int main (int argc, char **argv) {
-  int i, j;
+  int i, j, k;
   int status;
   int amp;
   int pid;
+  int size;
+  int fd;
+  int savedStdin, savedStdout;
   char *prompt;
   char **newarg;
   IS is;
@@ -39,59 +46,121 @@ int main (int argc, char **argv) {
     strcpy(prompt, "jsh: ");
   }
 
-//  printf("The prompt is -- '%s'\n", prompt);
+  //  printf("The prompt is -- '%s'\n", prompt);
 
   // this is the main loop of the shell
   is = new_inputstruct(NULL);
   cList = make_jrb();
-  here:
+beginningOfLoop:
   printf("%s", prompt);
   while (get_line(is) != -1) {
-    if (is->NF == 0) goto here;
+    if (is->NF == 0) goto beginningOfLoop;
     // if calling exit, closes the shell
     // also added q, just for a faster way for when I'm testing
     if ((strcmp(is->fields[0], "exit") == 0) || (strcmp(is->fields[0], "q") == 0)) exit(0);
-    
+
     // checks if there is a '&' at the end of the command
     amp = 0;
     if (strcmp(is->fields[is->NF - 1], "&") == 0) {
-//      printf("there is an &\n");
+      //      printf("there is an &\n");
       amp = 1;
     }
-    
+
+    j = 0;
+    for (i = 0; i < is->NF; i++) {
+      if ((strcmp(is->fields[i], ">") == 0) || (strcmp(is->fields[i], "<") == 0) || (strcmp(is->fields[i], ">>") == 0)) {
+        j = i;
+        break;
+      }
+    }
+    if (!j) j = is->NF;
+
+    //printf("j: %d\n", j);
+
     // allocates the coreect amount of args for newargs
     if (amp) {
-      newarg = (char **) malloc(sizeof(char *) * is->NF);
+      newarg = (char **) malloc(sizeof(char *) * j);
     } else {
-      newarg = (char **) malloc(sizeof(char *) * (is->NF + 1));
+      newarg = (char **) malloc(sizeof(char *) * (j + 1));
     }
 
     // fills the newarg array with the arguments to pass to exec
     if  (!amp) {
-      for (i = 0; i < is->NF; i++) {
+      for (i = 0; i < j; i++) {
         newarg[i] = strdup(is->fields[i]);
       }
-    
       // NULL terminator for newarg array
-      newarg[is->NF] = NULL;
+      newarg[j] = NULL;
     } else {
-      for (i = 0; i < (is->NF - 1); i++) {
+      for (i = 0; i < (j - 1); i++) {
         newarg[i] = strdup(is->fields[i]);
       }
-
-      newarg[is->NF - 1] = NULL;
+      newarg[j - 1] = NULL;
     }
 
     // prints newarg to make sure it filled correctly
-    for (i = 0; i < is->NF; i++) {
-//      printf("newarg[%d]: %s\n", i, newarg[i]);
+    for (i = 0; i < j; i++) {
+      //      printf("newarg[%d]: %s\n", i, newarg[i]);
     }
 
+    // set up file redirection
+    savedStdin = -1;
+    savedStdout = -1;
+    while (is->fields[j] != NULL) {
+      //    printf("is->fields[j]: %s\n", is->fields[j]);
+      if (strcmp(is->fields[j], "<") == 0) {
+        //      printf("redirect %s to stdin\n", is->fields[j+1]);
+        fd = open(is->fields[j+1], O_RDONLY);
+        if (fd < 0) {
+          perror(is->fields[j+1]);
+          exit(1);
+        }
+        savedStdin = dup(0);
+        close(0);
+        if (dup2(fd, 0) != 0) {
+          perror("jsh: dup2(fd, 0)");
+          exit(1);
+        }
+        close(fd);
+      }
+      if (strcmp(is->fields[j], ">") == 0) {
+        //      printf("redirect stdout to %s\n", is->fields[j+1]);
+        fd = open(is->fields[j+1], O_WRONLY | O_TRUNC | O_CREAT, 0644);
+        if (fd < 0) {
+          perror(is->fields[j+1]);
+          exit(1);
+        }
+        savedStdout = dup(1);
+        close(1);
+        if (dup2(fd, 1) != 1) {
+          perror("jsh: dup2(fd, 1)");
+          exit(1);
+        }
+        close(fd);
+      }
+      if (strcmp(is->fields[j], ">>") == 0) {
+        //      printf("appending to %s\n", is->fields[j+1]);
+        fd = open(is->fields[j+1], O_WRONLY | O_APPEND | O_CREAT, 0644);
+        if (fd < 0) {
+          perror(is->fields[j+1]);
+          exit(1);
+        }
+        savedStdout = dup(1);
+        close(1);
+        if (dup2(fd, 1) != 1) {
+          perror("jsh: dup2(fd, 1)");
+          exit(1);
+        }
+        close(fd);
+      }
+      j += 2;
+    }
+
+    // fork and exec
     pid = fork();
     if(pid == 0) {
       jrb_insert_int(cList, pid, new_jval_i(pid));
       i = execvp(newarg[0], newarg);
-//      printf("exec failed\n");
       perror(newarg[0]);
       exit(1);
     } else {
@@ -102,12 +171,22 @@ int main (int argc, char **argv) {
       }
     }
 
-
+    // restore stdin and/or stdout
+    if (savedStdin != -1) {
+      dup2(savedStdin, 0);
+      close(savedStdin);
+      savedStdin = -1;
+    }
+    if (savedStdout != -1) {
+      dup2(savedStdout, 1);
+      close(savedStdout);
+      savedStdout = -1;
+    }
 
     free(newarg);
     printf("%s", prompt);
   }
-  
+
   jettison_inputstruct(is);
   free(prompt);
   return 0;
