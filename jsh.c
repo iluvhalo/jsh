@@ -65,7 +65,7 @@ beginningOfLoop:
       //      printf("there is an &\n");
       amp = 1;
     }
-
+/*
     j = 0;
     for (i = 0; i < is->NF; i++) {
       if ((strcmp(is->fields[i], ">") == 0) || (strcmp(is->fields[i], "<") == 0) || (strcmp(is->fields[i], ">>") == 0)) {
@@ -75,19 +75,19 @@ beginningOfLoop:
     }
     j = 0;
     if (!j) j = is->NF;
-
-    //printf("j: %d\n", j);
+*/
+    //printf("is->NF: %d\n", is->NF);
 
     // allocates the coreect amount of args for newargs
     if (amp) {
-      newarg = (char **) malloc(sizeof(char *) * j);
+      newarg = (char **) malloc(sizeof(char *) * is->NF);
     } else {
-      newarg = (char **) malloc(sizeof(char *) * (j + 1));
+      newarg = (char **) malloc(sizeof(char *) * (is->NF + 1));
     }
 
     // fills the newarg array with the arguments to pass to exec
     if  (!amp) {
-      for (i = 0; i < j; i++) {
+      for (i = 0; i < is->NF; i++) {
         if (strcmp(is->fields[i], ">") == 0) break;
         if (strcmp(is->fields[i], "<") == 0) break;
         if (strcmp(is->fields[i], ">>") == 0) break;
@@ -96,7 +96,7 @@ beginningOfLoop:
       // NULL terminator for newarg array
       newarg[i] = NULL;
     } else {
-      for (i = 0; i < (j - 1); i++) {
+      for (i = 0; i < (is->NF - 1); i++) {
         if (strcmp(is->fields[i], ">") == 0) break;
         if (strcmp(is->fields[i], "<") == 0) break;
         if (strcmp(is->fields[i], ">>") == 0) break;
@@ -106,67 +106,15 @@ beginningOfLoop:
     }
 
     // prints newarg to make sure it filled correctly
-    for (i = 0; i < j; i++) {
-      //      printf("newarg[%d]: %s\n", i, newarg[i]);
+    for (i = 0; i < is->NF; i++) {
+//            printf("newarg[%d]: %s\n", i, newarg[i]);
     }
-
-/*    // set up file redirection
-    savedStdin = -1;
-    savedStdout = -1;
-    while (is->fields[j] != NULL) {
-      //    printf("is->fields[j]: %s\n", is->fields[j]);
-      if (strcmp(is->fields[j], "<") == 0) {
-        //      printf("redirect %s to stdin\n", is->fields[j+1]);
-        fd = open(is->fields[j+1], O_RDONLY);
-        if (fd < 0) {
-          perror(is->fields[j+1]);
-          exit(1);
-        }
-        savedStdin = dup(0);
-        close(0);
-        if (dup2(fd, 0) != 0) {
-          perror("jsh: dup2(fd, 0)");
-          exit(1);
-        }
-        close(fd);
-      }
-      if (strcmp(is->fields[j], ">") == 0) {
-        //      printf("redirect stdout to %s\n", is->fields[j+1]);
-        fd = open(is->fields[j+1], O_WRONLY | O_TRUNC | O_CREAT, 0644);
-        if (fd < 0) {
-          perror(is->fields[j+1]);
-          exit(1);
-        }
-        savedStdout = dup(1);
-        close(1);
-        if (dup2(fd, 1) != 1) {
-          perror("jsh: dup2(fd, 1)");
-          exit(1);
-        }
-        close(fd);
-      }
-      if (strcmp(is->fields[j], ">>") == 0) {
-        //      printf("appending to %s\n", is->fields[j+1]);
-        fd = open(is->fields[j+1], O_WRONLY | O_APPEND | O_CREAT, 0644);
-        if (fd < 0) {
-          perror(is->fields[j+1]);
-          exit(1);
-        }
-        savedStdout = dup(1);
-        close(1);
-        if (dup2(fd, 1) != 1) {
-          perror("jsh: dup2(fd, 1)");
-          exit(1);
-        }
-        close(fd);
-      }
-      j += 2;
-    }*/
 
     // fork and exec
     pid = fork();
     if(pid == 0) {
-      
+     
+      j = 0;
       for (i = 0; i < is->NF; i++) {
         if ((strcmp(is->fields[i], ">") == 0) || (strcmp(is->fields[i], "<") == 0) || (strcmp(is->fields[i], ">>") == 0)) {
           j = i;
