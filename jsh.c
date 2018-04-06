@@ -73,6 +73,7 @@ beginningOfLoop:
         break;
       }
     }
+    j = 0;
     if (!j) j = is->NF;
 
     //printf("j: %d\n", j);
@@ -87,15 +88,21 @@ beginningOfLoop:
     // fills the newarg array with the arguments to pass to exec
     if  (!amp) {
       for (i = 0; i < j; i++) {
+        if (strcmp(is->fields[i], ">") == 0) break;
+        if (strcmp(is->fields[i], "<") == 0) break;
+        if (strcmp(is->fields[i], ">>") == 0) break;
         newarg[i] = strdup(is->fields[i]);
       }
       // NULL terminator for newarg array
-      newarg[j] = NULL;
+      newarg[i] = NULL;
     } else {
       for (i = 0; i < (j - 1); i++) {
+        if (strcmp(is->fields[i], ">") == 0) break;
+        if (strcmp(is->fields[i], "<") == 0) break;
+        if (strcmp(is->fields[i], ">>") == 0) break;
         newarg[i] = strdup(is->fields[i]);
       }
-      newarg[j - 1] = NULL;
+      newarg[i] = NULL;
     }
 
     // prints newarg to make sure it filled correctly
@@ -103,7 +110,7 @@ beginningOfLoop:
       //      printf("newarg[%d]: %s\n", i, newarg[i]);
     }
 
-    // set up file redirection
+/*    // set up file redirection
     savedStdin = -1;
     savedStdout = -1;
     while (is->fields[j] != NULL) {
@@ -154,11 +161,63 @@ beginningOfLoop:
         close(fd);
       }
       j += 2;
-    }
+    }*/
 
     // fork and exec
     pid = fork();
     if(pid == 0) {
+      
+      for (i = 0; i < is->NF; i++) {
+        if ((strcmp(is->fields[i], ">") == 0) || (strcmp(is->fields[i], "<") == 0) || (strcmp(is->fields[i], ">>") == 0)) {
+          j = i;
+          break;
+        }
+      }
+      
+      // set up file redirection
+      while (is->fields[j] != NULL) {
+        //    printf("is->fields[j]: %s\n", is->fields[j]);
+        if (strcmp(is->fields[j], "<") == 0) {
+          //      printf("redirect %s to stdin\n", is->fields[j+1]);
+          fd = open(is->fields[j+1], O_RDONLY);
+          if (fd < 0) {
+            perror(is->fields[j+1]);
+            exit(1);
+          }
+          if (dup2(fd, 0) != 0) {
+            perror("jsh: dup2(fd, 0)");
+            exit(1);
+          }
+          close(fd);
+        }
+        if (strcmp(is->fields[j], ">") == 0) {
+          //      printf("redirect stdout to %s\n", is->fields[j+1]);
+          fd = open(is->fields[j+1], O_WRONLY | O_TRUNC | O_CREAT, 0644);
+          if (fd < 0) {
+            perror(is->fields[j+1]);
+            exit(1);
+          }
+          if (dup2(fd, 1) != 1) {
+            perror("jsh: dup2(fd, 1)");
+            exit(1);
+          }
+          close(fd);
+        }
+        if (strcmp(is->fields[j], ">>") == 0) {
+          //      printf("appending to %s\n", is->fields[j+1]);
+          fd = open(is->fields[j+1], O_WRONLY | O_APPEND | O_CREAT, 0644);
+          if (fd < 0) {
+            perror(is->fields[j+1]);
+            exit(1);
+          }
+          if (dup2(fd, 1) != 1) {
+            perror("jsh: dup2(fd, 1)");
+            exit(1);
+          }
+          close(fd);
+        }
+        j += 2;
+      }
       jrb_insert_int(cList, pid, new_jval_i(pid));
       i = execvp(newarg[0], newarg);
       perror(newarg[0]);
@@ -170,19 +229,19 @@ beginningOfLoop:
         } while (i != pid);
       }
     }
-
+    /*
     // restore stdin and/or stdout
     if (savedStdin != -1) {
-      dup2(savedStdin, 0);
-      close(savedStdin);
-      savedStdin = -1;
+    dup2(savedStdin, 0);
+    close(savedStdin);
+    savedStdin = -1;
     }
     if (savedStdout != -1) {
-      dup2(savedStdout, 1);
-      close(savedStdout);
-      savedStdout = -1;
+    dup2(savedStdout, 1);
+    close(savedStdout);
+    savedStdout = -1;
     }
-
+    */
     free(newarg);
     printf("%s", prompt);
   }
